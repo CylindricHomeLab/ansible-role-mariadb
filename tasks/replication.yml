@@ -1,0 +1,115 @@
+---
+- name: MariaDB | Set mariadb to listen on ethernet
+  ansible.builtin.lineinfile:
+    path: /etc/mysql/mariadb.conf.d/50-server.cnf
+    regex: '^bind-address'
+    line: bind-address=0.0.0.0
+  notify: Restart MariaDB
+
+- name: MariaDB | Configure replication
+  ansible.builtin.template:
+    src: templates/60-replication.cnf.j2
+    dest: /etc/mysql/mariadb.conf.d/60-replication.cnf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart MariaDB
+
+- name : Force restart of mariadb to load conf changes
+  meta: flush_handlers
+
+- name: MariaDB | Create replication user
+  community.mysql.mysql_user: 
+    login_user: root
+    login_password: "{{ mariadb_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: repl
+    host: "%"
+    password: "{{ mariadb_replication_password }}"
+    priv: '*.*:REPLICATION SLAVE'
+    state: present
+  register: replica_user
+
+- name: MariaDB | Starting replication
+  when: mariadb_replication_bootstrap
+  block:
+    - name: MariaDB | Get Primary status
+      community.mysql.mysql_query:
+        login_user: root
+        login_password: "{{ mariadb_root_password }}"
+        query: SHOW BINLOG STATUS
+      when: mariadb_replication_role == "primary"
+      register: primary_status
+
+    - name: MariaDB | Get Secondary status
+      community.mysql.mysql_query:
+        login_user: root
+        login_password: "{{ mariadb_root_password }}"
+        query: SHOW BINLOG STATUS
+      when: mariadb_replication_role == "secondary"
+      register: secondary_status
+
+    - name: MariaDB | Set Binlog status fact
+      ansible.builtin.set_fact:
+        mariadb_binlog_status: "{{ (mariadb_replication_role == 'primary') | ternary(primary_status['query_result'][0][0], secondary_status['query_result'][0][0]) }}"
+        mariadb_replication_role: "{{ mariadb_replication_role }}"
+
+    - name: MariaDB | Stop slave
+      community.mysql.mysql_replication:
+        login_user: root
+        login_password: "{{ mariadb_root_password }}"
+        mode: stopreplica
+        login_unix_socket: /run/mysqld/mysqld.sock
+      when: mariadb_replication_role == "secondary"
+
+    - name: MariaDB | Change master on second
+      community.mysql.mysql_replication:
+        login_user: root
+        login_password: "{{ mariadb_root_password }}"
+        login_unix_socket: /run/mysqld/mysqld.sock
+        mode: changeprimary
+        primary_host: "{{ hostvars[item]['ansible_default_ipv4']['address'] }}"
+        primary_user: "repl"
+        primary_password: "{{ mariadb_replication_password }}"
+        primary_log_file: "{{ hostvars[item]['mariadb_binlog_status']['File'] }}"
+        primary_log_pos: "{{ hostvars[item]['mariadb_binlog_status']['Position'] }}"
+      loop: "{{ mariadb_replication_nodes }}"
+      when: mariadb_replication_role == "secondary" and hostvars[item]["mariadb_replication_role"] == "primary"
+
+    - name: MariaDB | Start replica
+      community.mysql.mysql_replication:
+        login_user: root
+        login_password: "{{ mariadb_root_password }}"
+        login_unix_socket: /run/mysqld/mysqld.sock
+        mode: startreplica
+      when: mariadb_replication_role == "secondary"
+
+    - name: MariaDB | Stop primary
+      community.mysql.mysql_replication:
+        login_user: root
+        login_password: "{{ mariadb_root_password }}"
+        login_unix_socket: /run/mysqld/mysqld.sock
+        mode: stopreplica
+      when: mariadb_replication_role == "primary"
+
+    - name: MariaDB | Change primary
+      community.mysql.mysql_replication:
+        login_user: root
+        login_password: "{{ mariadb_root_password }}"
+        login_unix_socket: /run/mysqld/mysqld.sock
+        mode: changeprimary
+        primary_host: "{{ hostvars[item]['ansible_default_ipv4']['address'] }}"
+        primary_user: "repl"
+        primary_password: "{{ mariadb_replication_password }}"
+        primary_log_file: "{{ hostvars[item]['mariadb_binlog_status']['File'] }}"
+        primary_log_pos: "{{ hostvars[item]['mariadb_binlog_status']['Position'] }}"
+      loop: "{{ mariadb_replication_nodes }}"
+      when: mariadb_replication_role == "primary" and hostvars[item]["mariadb_replication_role"] == "secondary"
+
+    - name: MariaDB | Start primary
+      community.mysql.mysql_replication:
+        login_user: root
+        login_password: "{{ mariadb_root_password }}"
+        login_unix_socket: /run/mysqld/mysqld.sock
+        mode: startreplica
+      when: mariadb_replication_role == "primary"

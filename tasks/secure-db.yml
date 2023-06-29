@@ -1,0 +1,50 @@
+---
+# mysql_secure_installation
+- name: MariaDB | Update root password
+  community.mysql.mysql_user:
+    login_user: root
+    login_password: "{{ mariadb_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: root 
+    host: "{{ item }}" 
+    password: "{{ mariadb_root_password }}"
+  with_items:
+    - 127.0.0.1
+    - ::1
+    - localhost
+  when: mariadb_change_root_password
+
+# mysql_secure_installation
+- name: MariaDB | Delete anonymous MySQL user
+  community.mysql.mysql_user:
+    login_user: root
+    login_password: "{{ mariadb_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: "" 
+    host: "{{ item }}"
+    state: absent
+  with_items:
+    - localhost
+    - "{{ inventory_hostname }}"
+  when: mariadb_root_password | length > 0
+
+# mysql_secure_installation
+- name: MariaDB | Delete Hostname based MySQL user
+  community.mysql.mysql_user: 
+    login_user: root
+    login_password: "{{ mariadb_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: root 
+    host: "{{ inventory_hostname }}"
+    state: absent
+  when: mariadb_root_password | length > 0
+
+# mysql_secure_installation
+- name: MariaDB | Remove MySQL test database
+  community.mysql.mysql_db: 
+    login_user: root
+    login_password: "{{ mariadb_root_password }}"
+    login_unix_socket: /run/mysqld/mysqld.sock
+    name: test 
+    state: absent
+  when: mariadb_root_password | length > 0

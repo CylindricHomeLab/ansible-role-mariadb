@@ -1,0 +1,23 @@
+---
+- name: MariaDB | Get APT repository script
+  ansible.builtin.get_url:
+    url: https://r.mariadb.com/downloads/mariadb_repo_setup
+    dest: /tmp/mariadb_repo_setup
+    checksum: sha256:3a562a8861fc6362229314772c33c289d9096bafb0865ba4ea108847b78768d2
+    mode: '0744'
+
+- name: MariaDB | Run APT repository script
+  ansible.builtin.shell:
+    cmd: /tmp/mariadb_repo_setup --mariadb-server-version="mariadb-10.6"
+    creates: /etc/apt/sources.list.d/mariadb.list
+
+- name: MariaDB | Install mariadb packages
+  ansible.builtin.apt:
+    update_cache: yes
+    pkg:
+      - mariadb-server 
+      # - mariadb-client 
+      - mariadb-backup
+      # - galera-4
+      - python3-mysqldb
+
