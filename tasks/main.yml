@@ -1,8 +1,8 @@
 ---
-# - import_tasks: install-server.yml
-#   become: true
-# - import_tasks: secure-db.yml
-#   become: true
+- import_tasks: install-server.yml
+  become: true
+- import_tasks: secure-db.yml
+  become: true
 - import_tasks: replication.yml
   when: mariadb_replication
   become: true

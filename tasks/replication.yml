@@ -20,10 +20,10 @@
 
 - name: MariaDB | Create replication user
   community.mysql.mysql_user: 
-    login_user: root
+    login_user: "{{ mariadb_root_username }}"
     login_password: "{{ mariadb_root_password }}"
     login_unix_socket: /run/mysqld/mysqld.sock
-    name: repl
+    name: "{{ mariadb_replication_username }}"
     host: "%"
     password: "{{ mariadb_replication_password }}"
     priv: '*.*:REPLICATION SLAVE'
@@ -35,7 +35,7 @@
   block:
     - name: MariaDB | Get Primary status
       community.mysql.mysql_query:
-        login_user: root
+        login_user: "{{ mariadb_root_username }}"
         login_password: "{{ mariadb_root_password }}"
         query: SHOW BINLOG STATUS
       when: mariadb_replication_role == "primary"
@@ -43,7 +43,7 @@
 
     - name: MariaDB | Get Secondary status
       community.mysql.mysql_query:
-        login_user: root
+        login_user: "{{ mariadb_root_username }}"
         login_password: "{{ mariadb_root_password }}"
         query: SHOW BINLOG STATUS
       when: mariadb_replication_role == "secondary"
@@ -56,7 +56,7 @@
 
     - name: MariaDB | Stop slave
       community.mysql.mysql_replication:
-        login_user: root
+        login_user: "{{ mariadb_root_username }}"
         login_password: "{{ mariadb_root_password }}"
         mode: stopreplica
         login_unix_socket: /run/mysqld/mysqld.sock
@@ -64,12 +64,12 @@
 
     - name: MariaDB | Change master on second
       community.mysql.mysql_replication:
-        login_user: root
+        login_user: "{{ mariadb_root_username }}"
         login_password: "{{ mariadb_root_password }}"
         login_unix_socket: /run/mysqld/mysqld.sock
         mode: changeprimary
         primary_host: "{{ hostvars[item]['ansible_default_ipv4']['address'] }}"
-        primary_user: "repl"
+        primary_user: "{{ mariadb_replication_username }}"
         primary_password: "{{ mariadb_replication_password }}"
         primary_log_file: "{{ hostvars[item]['mariadb_binlog_status']['File'] }}"
         primary_log_pos: "{{ hostvars[item]['mariadb_binlog_status']['Position'] }}"
@@ -78,7 +78,7 @@
 
     - name: MariaDB | Start replica
       community.mysql.mysql_replication:
-        login_user: root
+        login_user: "{{ mariadb_root_username }}"
         login_password: "{{ mariadb_root_password }}"
         login_unix_socket: /run/mysqld/mysqld.sock
         mode: startreplica
@@ -86,7 +86,7 @@
 
     - name: MariaDB | Stop primary
       community.mysql.mysql_replication:
-        login_user: root
+        login_user: "{{ mariadb_root_username }}"
         login_password: "{{ mariadb_root_password }}"
         login_unix_socket: /run/mysqld/mysqld.sock
         mode: stopreplica
@@ -94,7 +94,7 @@
 
     - name: MariaDB | Change primary
       community.mysql.mysql_replication:
-        login_user: root
+        login_user: "{{ mariadb_root_username }}"
         login_password: "{{ mariadb_root_password }}"
         login_unix_socket: /run/mysqld/mysqld.sock
         mode: changeprimary
@@ -108,7 +108,7 @@
 
     - name: MariaDB | Start primary
       community.mysql.mysql_replication:
-        login_user: root
+        login_user: "{{ mariadb_root_username }}"
         login_password: "{{ mariadb_root_password }}"
         login_unix_socket: /run/mysqld/mysqld.sock
         mode: startreplica
