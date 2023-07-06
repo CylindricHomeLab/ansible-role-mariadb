@@ -1,18 +1,28 @@
 ---
-# mysql_secure_installation
-- name: MariaDB | Update root password
-  community.mysql.mysql_user:
-    login_user: root
-    login_password: "{{ mariadb_root_password }}"
-    login_unix_socket: /run/mysqld/mysqld.sock
-    name: root 
-    host: "{{ item }}" 
-    password: "{{ mariadb_root_password }}"
-  with_items:
-    - 127.0.0.1
-    - ::1
-    - localhost
-  when: mariadb_change_root_password
+- name: MariaDB | Reset root password
+  when:
+    - mariadb_root_password | length > 0
+    - mariadb_change_root_password
+  block:
+    - name: Stop MariaDB and disable passwords
+      ansible.builtin.shell: |
+        sudo systemctl stop mariadb
+        sudo systemctl set-environment MYSQLD_OPTS="--skip-grant-tables --skip-networking"
+
+    - name: Restart MariaDB and set new root password
+      ansible.builtin.shell: |
+        sudo systemctl restart mariadb
+        sudo mysql -e "FLUSH PRIVILEGES;ALTER USER 'root'@'{{item}}' IDENTIFIED BY '{{ mariadb_root_password }}';"
+        echo Password for 'root'@{{item}} is now {{ mariadb_root_password }}
+      with_items:
+        - 127.0.0.1
+        - ::1
+        - localhost
+    
+    - name: Restart MariaDB with passwords enabled
+      ansible.builtin.shell: |
+        sudo systemctl unset-environment MYSQLD_OPTS
+        sudo systemctl restart mariadb
 
 # mysql_secure_installation
 - name: MariaDB | Delete anonymous MySQL user

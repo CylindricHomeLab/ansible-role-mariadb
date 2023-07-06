@@ -6,3 +6,9 @@
 - import_tasks: replication.yml
   when: mariadb_replication
   become: true
+- name: Start MariaDB
+  ansible.builtin.systemd:
+    name: mariadb
+    state: restarted
+    enabled: true
+  become: true
